@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <title>Makrokalkulator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #eeeeee;
+    }
+
+    .container {
+      background-color: #f9f9f9;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      max-width: 900px;
+      margin: auto;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+    }
+
+    h2, h3 {
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+    }
+
+    .input-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .button {
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+
+    .delete-btn {
+      color: red;
+      cursor: pointer;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f0f0f0;
+    }
+
+    .autocomplete-suggestions {
+      border: 1px solid #ccc;
+      max-height: 150px;
+      overflow-y: auto;
+      background-color: #fff;
+      position: absolute;
+      width: 200px;
+      z-index: 10;
+    }
+
+    .autocomplete-suggestion {
+      padding: 8px;
+      cursor: pointer;
+    }
+
+    .autocomplete-suggestions:empty {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <h1>Makrokalkulator</h1>
+
+    <!-- Seksjon: Legg til matvare -->
+    <div class="section">
+      <h3>Legg til matvare</h3>
+      <div class="input-container">
+        <label for="foodSearch">Søk:</label>
+        <div style="position: relative;">
+          <input type="text" id="foodSearch" oninput="searchFood()" placeholder="Søk..." 
+                 onkeydown="handleKeyDown(event)" autocomplete="off" onclick="showSuggestions()">
+          <div id="suggestions" class="autocomplete-suggestions"></div>
+        </div>
+
+        <label for="foodSelect">Eller velg:</label>
+        <select id="foodSelect" onchange="selectFoodFromDropdown()">
+          <option value="">Velg matvare...</option>
+        </select>
+
+        <label for="grams">Gram:</label>
+        <input type="number" id="grams" min="0">
+        <button onclick="addFood()" class="button">Legg til</button>
+      </div>
+    </div>
+
+    <!-- Seksjon: Hent lagrede måltider -->
+    <div class="section">
+      <h3>Hent lagrede måltider</h3>
+      <div class="input-container">
+        <select id="mealSelect" oncontextmenu="handleMealRightClick(event)">
+          <option value="">Velg lagret måltid...</option>
+        </select>
+        <button onclick="addSelectedMeal()" class="button">Legg til valgt måltid</button>
+        <button onclick="deleteSelectedMeal()" class="button" style="color: red;">Slett valgt måltid</button>
+      </div>
+    </div>
+
+    <!-- Seksjon: Dagens inntak -->
+    <div class="section">
+      <h2>Dagens inntak</h2>
+      <table id="log">
+        <thead>
+          <tr>
+            <th>Matvare</th>
+            <th>Gram</th>
+            <th>Protein</th>
+            <th>Fett</th>
+            <th>Karbohydrat</th>
+            <th>Kcal</th>
+            <th>Handling</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button onclick="clearLog()" class="button" style="background-color: #f88; margin-top: 10px;">Slett alt</button>
+
+      <h3 style="margin-top: 20px;">Totalt</h3>
+      <p id="totals"></p>
+    </div>
+
+    <!-- Seksjon: Lagre måltid -->
+    <div class="section">
+      <h3>Lagre måltid</h3>
+      <div class="input-container">
+        <input type="text" id="save-name" placeholder="Navn på måltid">
+        <button onclick="saveMeal()" class="button">Lagre måltid</button>
+      </div>
+
+
+  <script>
+    const foods = [
+    { name: "Kyllingfilet, rå", protein: 23, fett: 1.2, karbo: 0, kcal: 110 },
+    { name: "Kyllinglår, rå", protein: 19, fett: 4, karbo: 0, kcal: 120 },
+    { name: "Ris, tørr", protein: 7, fett: 1, karbo: 78, kcal: 360 },
+    { name: "Brokkoli, rå", protein: 3, fett: 0.4, karbo: 7, kcal: 34 },
+    { name: "Banan", protein: 1.1, fett: 0.3, karbo: 23, kcal: 89 },
+    { name: "Havregryn", protein: 13.6, fett: 7.0, karbo: 60.0, kcal: 372 },
+    { name: "Pasta, tørr", protein: 12.5, fett: 1.5, karbo: 70.0, kcal: 355 },
+    { name: "Laks, rå", protein: 20.0, fett: 13.0, karbo: 0.0, kcal: 206 },
+    { name: "Egg", protein: 13, fett: 11, karbo: 1.1, kcal: 155 },
+    { name: "Eple", protein: 0.3, fett: 0.1, karbo: 11.4, kcal: 47 },
+    { name: "Blåbær", protein: 1.1, fett: 0.6, karbo: 14.5, kcal: 70 },
+    { name: "Jordbær", protein: 0.5, fett: 0.2, karbo: 6.6, kcal: 34 },
+    { name: "Gulrot", protein: 0.9, fett: 0.2, karbo: 9.6, kcal: 41 },
+    { name: "Paprika", protein: 0.9, fett: 0.2, karbo: 6.0, kcal: 27 },
+    { name: "Mandler", protein: 21.2, fett: 52.1, karbo: 6.6, kcal: 601 },
+    { name: "Valnøtter", protein: 14.1, fett: 66.5, karbo: 2.8, kcal: 680 },
+    { name: "Storfe, rå", protein: 22.0, fett: 4.7, karbo: 0.0, kcal: 131 },
+    { name: "Svin, ytrefilet", protein: 23.4, fett: 2.9, karbo: 0.3, kcal: 120 },
+    { name: "Karbonadedeig, 4.5% fett", protein: 20.7, fett: 4.5, karbo: 0.0, kcal: 123 },
+    { name: "Kyllingkjøttdeig, rå", protein: 20, fett: 5, karbo: 0, kcal: 130 },
+    { name: "Svinefilet, rå", protein: 23.4, fett: 2.9, karbo: 0.3, kcal: 120 },
+    { name: "Svinestek, rå", protein: 20, fett: 10, karbo: 0, kcal: 180 },
+    { name: "Okse indrefilet, rå", protein: 22, fett: 4.7, karbo: 0, kcal: 131 },
+    { name: "Okse ytrefilet, rå", protein: 21, fett: 5, karbo: 0, kcal: 135 },
+    { name: "Okse mørbrad, rå", protein: 20, fett: 6, karbo: 0, kcal: 140 },
+    { name: "Okse entrecôte, rå", protein: 19, fett: 15, karbo: 0, kcal: 210 },
+    { name: "Storfe kjøttdeig, rå", protein: 17, fett: 20, karbo: 0, kcal: 250 },
+    { name: "Bringebær, rå", protein: 1.2, fett: 0.7, karbo: 11.9, kcal: 53 },
+    { name: "Druer, rå", protein: 0.6, fett: 0.2, karbo: 16.3, kcal: 69 },
+    { name: "Ananas, rå", protein: 0.5, fett: 0.1, karbo: 13.1, kcal: 50 },
+    { name: "Mango, rå", protein: 0.8, fett: 0.4, karbo: 15.0, kcal: 60 },
+    { name: "Melon, rå", protein: 0.8, fett: 0.2, karbo: 8.2, kcal: 34 },
+    { name: "Paprika, rå", protein: 0.9, fett: 0.2, karbo: 6, kcal: 27 },
+    { name: "Agurk, rå", protein: 0.7, fett: 0.1, karbo: 3.6, kcal: 16 },
+    { name: "Blomkål, rå", protein: 1.9, fett: 0.3, karbo: 4.9, kcal: 25 },
+    { name: "Grønne bønner, rå", protein: 1.8, fett: 0.1, karbo: 7, kcal: 31 },
+    { name: "Tomat, rå", protein: 1.0, fett: 0.2, karbo: 3.9, kcal: 18 },
+    { name: "Salat, isbergsalat", protein: 0.8, fett: 0.1, karbo: 2.9, kcal: 14 },
+    { name: "Honningdew (melon)", protein: 0.6, fett: 0.2, karbo: 8.0, kcal: 36 },
+    { name: "Vannmelon", protein: 0.6, fett: 0.2, karbo: 7.5, kcal: 30 },
+    { name: "Ananas", protein: 0.5, fett: 0.1, karbo: 13.0, kcal: 52 },
+    { name: "Grapefrukt", protein: 0.8, fett: 0.1, karbo: 8.0, kcal: 42 },
+    { name: "Sitron", protein: 1.1, fett: 0.3, karbo: 9.3, kcal: 29 },
+    { name: "Lime", protein: 1.1, fett: 0.2, karbo: 7.0, kcal: 30 },
+    { name: "Appelsin", protein: 1.0, fett: 0.2, karbo: 8.3, kcal: 43 },
+    { name: "Tangerine", protein: 1.0, fett: 0.3, karbo: 8.0, kcal: 47 },
+    { name: "Druer", protein: 0.6, fett: 0.2, karbo: 16.0, kcal: 69 },
+    { name: "Kirsebær", protein: 1.0, fett: 0.2, karbo: 16.0, kcal: 50 },
+    { name: "Svisker", protein: 2.4, fett: 0.4, karbo: 63.9, kcal: 240 },
+    { name: "Datoer", protein: 2.0, fett: 0.2, karbo: 75.0, kcal: 277 },
+    { name: "Rosiner", protein: 3.1, fett: 0.5, karbo: 79.0, kcal: 299 },
+    { name: "Spinat, rå", protein: 2.9, fett: 0.4, karbo: 1.4, kcal: 23 },
+    { name: "Avocado, rå", protein: 2, fett: 15, karbo: 9, kcal: 160 },
+    { name: "Løk, gul", protein: 1.2, fett: 0.1, karbo: 9.3, kcal: 40 },
+    { name: "Løk, rødløk", protein: 1.0, fett: 0.1, karbo: 9.3, kcal: 40 },
+    { name: "YT Proteinshake Sjokolade", protein: 10.0, fett: 1.6, karbo: 2.2, kcal: 57 },
+    { name: "YT Proteinshake Vanilje", protein: 10.0, fett: 1.3, karbo: 3.7, kcal: 74 },
+    { name: "YT Proteinshake Mango", protein: 10.0, fett: 1.6, karbo: 2.5, kcal: 68 },
+    { name: "YT Proteinyoghurt Pasjonsfrukt", protein: 10.0, fett: 0.7, karbo: 5.0, kcal: 62 },
+    { name: "YT Proteinyoghurt Bringebær", protein: 10.0, fett: 0.7, karbo: 6.0, kcal: 66 },
+    { name: "YT Proteinyoghurt Vanilje", protein: 10.0, fett: 0.7, karbo: 4.0, kcal: 60 },
+    { name: "YT Proteinpudding Sjokolade", protein: 15.0, fett: 3.2, karbo: 3.2, kcal: 110 },
+    { name: "YT Proteinpudding Vanilje", protein: 15.0, fett: 3.5, karbo: 3.5, kcal: 112 },
+    { name: "YT Restitusjonsdrikk Kakao", protein: 20.0, fett: 2.2, karbo: 42.0, kcal: 260 },
+    { name: "YT Restitusjonsdrikk Banan/Jordbær", protein: 20.0, fett: 2.0, karbo: 44.0, kcal: 276 },
+    { name: "YT Energibar Sjokolade", protein: 20.0, fett: 10.0, karbo: 30.0, kcal: 260 },
+    { name: "YT Restitusjonsbar Sjokolade/Peanøtt", protein: 22.0, fett: 9.0, karbo: 35.0, kcal: 280 },
+    { name: "Honning", protein: 0.3, fett: 0.0, karbo: 81.0, kcal: 304 },
+    { name: "YT Sportsdrikk Røde bær", protein: 0.0, fett: 0.0, karbo: 6.0, kcal: 24 },
+    { name: "YT Sportsdrikk Sitrus", protein: 0.0, fett: 0.0, karbo: 7.0, kcal: 28 },
+    { name: "YT Proteinmelk Kakao", protein: 6.0, fett: 1.0, karbo: 13.0, kcal: 81 },
+    { name: "YT Proteinmelk Naturell", protein: 6.0, fett: 1.0, karbo: 4.0, kcal: 44 },
+    { name: "YT Yoghurtdrikk Bringebær/Tranebær", protein: 3.5, fett: 0.2, karbo: 8.0, kcal: 54 },
+    { name: "YT Cottage Cheese Vanilje", protein: 14.0, fett: 4.0, karbo: 7.0, kcal: 110 },
+    { name: "Hvitløk, rå", protein: 6.4, fett: 0.5, karbo: 33.1, kcal: 149 },
+    { name: "YT Proteinshake, sjokolade", protein: 9.3, fett: 0.9, karbo: 4.8, kcal: 65 },
+    { name: "Selleri", protein: 0.7, fett: 0.2, karbo: 1.4, kcal: 14 },
+    { name: "Mais", protein: 3.4, fett: 1.5, karbo: 19.0, kcal: 96 },
+    { name: "Blomkål", protein: 1.9, fett: 0.3, karbo: 3.0, kcal: 25 },
+    { name: "Spinat", protein: 2.9, fett: 0.4, karbo: 1.1, kcal: 23 },
+    { name: "Persille", protein: 3.0, fett: 0.8, karbo: 6.3, kcal: 36 },
+    { name: "Asparges", protein: 2.2, fett: 0.1, karbo: 2.1, kcal: 20 },
+    { name: "Aubergine", protein: 1.0, fett: 0.2, karbo: 5.5, kcal: 25 },
+    { name: "Salat", protein: 1.4, fett: 0.2, karbo: 2.0, kcal: 14 },
+    { name: "Kål", protein: 1.3, fett: 0.2, karbo: 4.0, kcal: 25 },
+    { name: "Bok choy", protein: 1.5, fett: 0.2, karbo: 2.2, kcal: 13 },
+    { name: "Courgette", protein: 1.2, fett: 0.3, karbo: 3.1, kcal: 17 },
+    { name: "Ekorn squash", protein: 1.0, fett: 0.1, karbo: 10.0, kcal: 40 },
+    { name: "Butternut squash", protein: 1.0, fett: 0.1, karbo: 12.0, kcal: 45 },
+    { name: "Hvitløk", protein: 6.4, fett: 0.5, karbo: 33.1, kcal: 149 },
+    { name: "Erter", protein: 5.4, fett: 0.4, karbo: 14.0, kcal: 81 },
+    { name: "Grønne bønner", protein: 1.8, fett: 0.1, karbo: 7.0, kcal: 31 },
+    { name: "Lima bønner", protein: 6.8, fett: 0.4, karbo: 20.0, kcal: 115 },
+    { name: "Svarte bønner", protein: 8.9, fett: 0.5, karbo: 23.7, kcal: 132 },
+    { name: "Nyrebønner", protein: 8.7, fett: 0.5, karbo: 22.8, kcal: 127 },
+    { name: "Brusselspirer", protein: 3.4, fett: 0.3, karbo: 8.0, kcal: 43 },
+    { name: "Agurk", protein: 0.7, fett: 0.1, karbo: 3.6, kcal: 15 },
+    { name: "Tomat", protein: 0.9, fett: 0.2, karbo: 3.9, kcal: 18 },
+    { name: "Reddik", protein: 0.7, fett: 0.1, karbo: 3.4, kcal: 16 },
+    { name: "Sopp", protein: 3.1, fett: 0.3, karbo: 3.3, kcal: 22 },
+    { name: "Artisjokk", protein: 3.3, fett: 0.2, karbo: 11.0, kcal: 47 },
+    { name: "Yam", protein: 1.5, fett: 0.2, karbo: 28.0, kcal: 118 },
+    { name: "Grønn paprika", protein: 1.0, fett: 0.2, karbo: 6.0, kcal: 20 },
+    { name: "Rød paprika", protein: 1.0, fett: 0.3, karbo: 6.3, kcal: 26 },
+    { name: "Jalapeno", protein: 1.0, fett: 0.1, karbo: 4.0, kcal: 29 },
+    { name: "Chili pepper", protein: 2.0, fett: 0.4, karbo: 9.0, kcal: 40 },
+    { name: "Bete (rødbete)", protein: 1.6, fett: 0.2, karbo: 10.0, kcal: 43 },
+    { name: "Løk", protein: 1.1, fett: 0.1, karbo: 9.3, kcal: 40 },
+    { name: "Vårløk", protein: 1.8, fett: 0.2, karbo: 7.3, kcal: 32 },
+    { name: "Nepe", protein: 0.9, fett: 0.1, karbo: 6.4, kcal: 28 },
+    { name: "Pastinakk", protein: 1.2, fett: 0.3, karbo: 17.0, kcal: 75 },
+    { name: "Rutabaga", protein: 1.2, fett: 0.2, karbo: 8.6, kcal: 37 },
+    { name: "Bendit smoothie (Bringebær & Jordbær)", protein: 0.4, fett: 0.1, karbo: 11.1, kcal: 49 },
+    { name: "Maxim sportsdrikk pulver (Sitron)", protein: 0.0, fett: 0.0, karbo: 87.0, kcal: 348 },
+    { name: "100% Whey proteinpulver (Sjokolade)", protein: 71.8, fett: 8.1, karbo: 7.9, kcal: 392 },
+    { name: "Grandiosa Original", protein: 10.0, fett: 9.0, karbo: 25.0, kcal: 230 },
+    { name: "Pølse - Wiener", protein: 11.0, fett: 24.0, karbo: 2.0, kcal: 270 },
+    { name: "Pølse - Grill", protein: 12.0, fett: 25.0, karbo: 3.0, kcal: 280 },
+    { name: "Hamburgerkjøtt - 14% fett", protein: 18.0, fett: 20.0, karbo: 0.0, kcal: 250 },
+    { name: "Hamburgerkjøtt - 20% fett", protein: 17.0, fett: 23.0, karbo: 0.0, kcal: 290 },
+    { name: "Pølsebrød - Grovt", protein: 7.7, fett: 7.2, karbo: 48.2, kcal: 300 },
+    { name: "Pølsebrød - Fint", protein: 9.3, fett: 6.3, karbo: 52.7, kcal: 312 },
+    { name: "Hamburgerbrød - Grovt", protein: 8.0, fett: 6.0, karbo: 45.0, kcal: 290 },
+    { name: "Hamburgerbrød - Fint", protein: 7.5, fett: 5.5, karbo: 50.0, kcal: 310 },
+    { name: "Bacon - Original", protein: 12.0, fett: 29.0, karbo: 0.0, kcal: 310 },
+    { name: "Potet", protein: 2.0, fett: 0.1, karbo: 17.0, kcal: 77 },
+    { name: "Søtpotet", protein: 1.6, fett: 0.1, karbo: 20.0, kcal: 86 },
+    { name: "Kikerter", protein: 19.0, fett: 6.0, karbo: 61.0, kcal: 364 },    
+    { name: "Karbonadedeig 5% uten vann/salt", protein: 21.0, fett: 5.0, karbo: 0.0, kcal: 125 },
+    { name: "Big Beef burger (fra Meny)", protein: 22.0, fett: 19.0, karbo: 2.0, kcal: 270 }
+    ];
+
+    let savedMeals = JSON.parse(localStorage.getItem("meals") || '{}');
+    const foodSelect = document.getElementById("foodSelect");
+    const mealSelect = document.getElementById("mealSelect");
+    const log = document.getElementById("log").getElementsByTagName("tbody")[0];
+    let currentSuggestionIndex = -1;
+
+    function populateDropdowns() {
+      foodSelect.innerHTML = `<option value="">Velg matvare...</option>`;
+      foods.forEach(food => {
+        const opt = document.createElement("option");
+        opt.value = food.name;
+        opt.textContent = food.name;
+        foodSelect.appendChild(opt);
+      });
+
+      mealSelect.innerHTML = `<option value="">Velg måltid...</option>`;
+      Object.keys(savedMeals).forEach(meal => {
+        const opt = document.createElement("option");
+        opt.value = meal;
+        opt.textContent = meal;
+        mealSelect.appendChild(opt);
+      });
+    }
+
+    function searchFood() {
+      const input = document.getElementById("foodSearch");
+      const suggestions = document.getElementById("suggestions");
+      const query = input.value.toLowerCase();
+      foodSelect.value = "";
+      suggestions.innerHTML = "";
+      currentSuggestionIndex = -1;
+
+      if (!query) return;
+
+      const matches = foods.filter(f => f.name.toLowerCase().includes(query));
+      matches.forEach((food, i) => {
+        const div = document.createElement("div");
+        div.className = "autocomplete-suggestion";
+        div.textContent = food.name;
+        div.onclick = () => {
+          input.value = food.name;
+          suggestions.innerHTML = "";
+          document.getElementById("grams").focus();
+        };
+        suggestions.appendChild(div);
+      });
+    }
+
+    function handleKeyDown(event) {
+      const suggestionsBox = document.getElementById("suggestions");
+      const suggestions = suggestionsBox.querySelectorAll(".autocomplete-suggestion");
+      const maxIndex = suggestions.length - 1;
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        currentSuggestionIndex = (currentSuggestionIndex + 1) > maxIndex ? 0 : currentSuggestionIndex + 1;
+        highlightSuggestion(suggestions);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        currentSuggestionIndex = (currentSuggestionIndex - 1) < 0 ? maxIndex : currentSuggestionIndex - 1;
+        highlightSuggestion(suggestions);
+      } else if (event.key === "Enter" || event.key === "Tab") {
+        if (currentSuggestionIndex >= 0 && currentSuggestionIndex <= maxIndex) {
+          event.preventDefault();
+          const selected = suggestions[currentSuggestionIndex].textContent;
+          document.getElementById("foodSearch").value = selected;
+          suggestionsBox.innerHTML = "";
+          document.getElementById("grams").focus();
+        }
+      }
+    }
+
+    function highlightSuggestion(suggestions) {
+      suggestions.forEach((el, i) => {
+        el.classList.toggle("highlight", i === currentSuggestionIndex);
+      });
+    }
+
+    function showSuggestions() {
+      if (document.getElementById("foodSearch").value) {
+        searchFood();
+      }
+    }
+
+    function submitGrams(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addFood();
+      }
+    }
+
+    function selectFoodFromDropdown() {
+      const value = foodSelect.value;
+      if (value) document.getElementById("foodSearch").value = "";
+    }
+
+    function addFood() {
+      const name = document.getElementById("foodSearch").value || foodSelect.value;
+      const grams = parseFloat(document.getElementById("grams").value);
+      if (!name || isNaN(grams)) return;
+
+      const food = foods.find(f => f.name === name);
+      if (!food) return;
+
+      const row = log.insertRow();
+      row.innerHTML = `
+        <td>${food.name}</td>
+        <td contenteditable oninput="updateRow(this)">${grams}</td>
+        <td>${(food.protein * grams / 100).toFixed(2)}</td>
+        <td>${(food.fett * grams / 100).toFixed(2)}</td>
+        <td>${(food.karbo * grams / 100).toFixed(2)}</td>
+        <td>${(food.kcal * grams / 100).toFixed(2)}</td>
+        <td><button class="delete-btn" onclick="deleteRow(this)">Slett</button></td>
+      `;
+      updateTotal();
+      document.getElementById("grams").value = "";
+      document.getElementById("foodSearch").value = "";
+      foodSelect.value = "";
+    }
+
+    function updateRow(cell) {
+      const row = cell.parentElement;
+      const grams = parseFloat(cell.textContent);
+      const name = row.cells[0].textContent;
+      const food = foods.find(f => f.name === name);
+      if (!food || isNaN(grams)) return;
+
+      row.cells[2].textContent = (food.protein * grams / 100).toFixed(2);
+      row.cells[3].textContent = (food.fett * grams / 100).toFixed(2);
+      row.cells[4].textContent = (food.karbo * grams / 100).toFixed(2);
+      row.cells[5].textContent = (food.kcal * grams / 100).toFixed(2);
+      updateTotal();
+    }
+
+    function deleteRow(btn) {
+      btn.parentElement.parentElement.remove();
+      updateTotal();
+    }
+
+    function clearLog() {
+      log.innerHTML = "";
+      updateTotal();
+    }
+
+    function updateTotal() {
+      let prot = 0, fett = 0, karbo = 0, kcal = 0;
+      for (let row of log.rows) {
+        prot += parseFloat(row.cells[2].textContent);
+        fett += parseFloat(row.cells[3].textContent);
+        karbo += parseFloat(row.cells[4].textContent);
+        kcal += parseFloat(row.cells[5].textContent);
+      }
+      document.getElementById("totals").textContent =
+        `Protein: ${prot.toFixed(2)}g | Fett: ${fett.toFixed(2)}g | Karbo: ${karbo.toFixed(2)}g | Kcal: ${kcal.toFixed(2)}kcal`;
+    }
+
+    function saveMeal() {
+      const name = document.getElementById("save-name").value.trim();
+      if (!name || !log.rows.length) return;
+      const meal = Array.from(log.rows).map(r => ({
+        name: r.cells[0].textContent,
+        grams: parseFloat(r.cells[1].textContent)
+      }));
+      savedMeals[name] = meal;
+      localStorage.setItem("meals", JSON.stringify(savedMeals));
+      document.getElementById("save-name").value = "";
+      populateDropdowns();
+      alert("Måltid lagret!");
+    }
+
+    function addSelectedMeal() {
+      const selectedMeal = mealSelect.value;
+      if (!selectedMeal) return;
+
+      const meal = savedMeals[selectedMeal];
+      meal.forEach(item => {
+        const food = foods.find(f => f.name === item.name);
+        if (!food) return;
+
+        const row = log.insertRow();
+        row.innerHTML = `
+          <td>${food.name}</td>
+          <td contenteditable oninput="updateRow(this)">${item.grams}</td>
+          <td>${(food.protein * item.grams / 100).toFixed(2)}</td>
+          <td>${(food.fett * item.grams / 100).toFixed(2)}</td>
+          <td>${(food.karbo * item.grams / 100).toFixed(2)}</td>
+          <td>${(food.kcal * item.grams / 100).toFixed(2)}</td>
+          <td><button class="delete-btn" onclick="deleteRow(this)">Slett</button></td>
+        `;
+      });
+      updateTotal();
+    }
+
+    function deleteSelectedMeal() {
+      const selectedMeal = mealSelect.value;
+      if (!selectedMeal) return;
+
+      const confirmDelete = confirm(`Er du sikker på at du vil slette måltidet "${selectedMeal}"?`);
+      if (!confirmDelete) return;
+
+      delete savedMeals[selectedMeal];
+      localStorage.setItem("meals", JSON.stringify(savedMeals));
+      populateDropdowns();
+      alert(`Måltidet "${selectedMeal}" er slettet.`);
+    }
+
+    document.addEventListener('click', function(event) {
+      const suggestions = document.getElementById("suggestions");
+      if (!event.target.closest('#foodSearch')) {
+        suggestions.innerHTML = "";
+      }
+    });
+
+    populateDropdowns();
+  </script>
+</body>
+</html>
